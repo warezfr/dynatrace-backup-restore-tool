@@ -2,6 +2,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from fastapi.staticfiles import StaticFiles
 import logging
 import structlog
 from pathlib import Path
@@ -9,6 +10,7 @@ from pathlib import Path
 from .core.config import settings
 from .database.database import init_db
 from .api import backups, restore, dynatrace, health, environments, config
+from . import ui
 
 # Configure logging
 structlog.configure(
@@ -56,6 +58,11 @@ app.include_router(dynatrace.router)
 app.include_router(backups.router)
 app.include_router(restore.router)
 app.include_router(config.router)
+app.include_router(ui.router)
+
+# Static files for web UI (Webmin-like theme)
+static_dir = Path(__file__).resolve().parent.parent / "static"
+app.mount("/static", StaticFiles(directory=static_dir), name="static")
 
 @app.on_event("startup")
 async def startup_event():

@@ -15,6 +15,9 @@ PyQt6-sip>=13.0.0
 requests>=2.30.0
 PyYAML>=6.0
 
+# Templates / Web UI
+jinja2>=3.1.0
+
 # Scheduling
 APScheduler>=3.10.0
 
