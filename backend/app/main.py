@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 import logging
 import structlog
+from pathlib import Path
 
 from .core.config import settings
 from .database.database import init_db
@@ -59,6 +60,8 @@ app.include_router(config.router)
 @app.on_event("startup")
 async def startup_event():
     """Initialize database and services on startup"""
+    if not Path(".env").exists():
+        logging.info(".env not found - using default settings; create .env to override.")
     init_db()
     logger = structlog.get_logger()
     logger.info("Application started", app_name=settings.APP_NAME, version=settings.APP_VERSION)
