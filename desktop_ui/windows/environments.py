@@ -116,6 +116,13 @@ class GroupDialog(QDialog):
         self.url_input = QLineEdit()
         self.url_input.setPlaceholderText("https://dynatrace.example.com/e/12345678")
         layout.addWidget(self.url_input)
+
+        # Deployment type (Managed / SaaS)
+        layout.addWidget(QLabel("Deployment Type:"))
+        self.deployment_combo = QComboBox()
+        self.deployment_combo.addItems(["Managed", "SaaS"])
+        self.deployment_combo.currentTextChanged.connect(self._update_url_placeholder)
+        layout.addWidget(self.deployment_combo)
         
         # API Token
         layout.addWidget(QLabel("API Token:"))
@@ -145,6 +152,12 @@ class GroupDialog(QDialog):
             tags = self.environment.get("tags") or []
             self.tags_input.setText(", ".join(tags))
             self.insecure_check.setChecked(bool(self.environment.get("insecure_ssl")))
+            if "saas" in [t.lower() for t in tags]:
+                self.deployment_combo.setCurrentText("SaaS")
+            else:
+                self.deployment_combo.setCurrentText("Managed")
+        else:
+            self._update_url_placeholder("Managed")
         
         # Buttons
         button_layout = QHBoxLayout()
@@ -173,6 +186,9 @@ class GroupDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Please fill all required fields")
             return
         tags = [t.strip() for t in self.tags_input.text().split(",") if t.strip()]
+        deployment_tag = "saas" if self.deployment_combo.currentText().lower() == "saas" else "managed"
+        if deployment_tag not in [t.lower() for t in tags]:
+            tags.append(deployment_tag)
         self.result_data = {
             "name": self.name_input.text().strip(),
             "description": None,
@@ -688,6 +704,13 @@ class EnvironmentsWindow(QWidget):
             return dt.strftime("%Y-%m-%d %H:%M")
         except Exception:
             return str(last_tested)
+    
+    def _update_url_placeholder(self, deployment: str):
+        """Adjust URL placeholder depending on deployment type"""
+        if deployment.lower() == "saas":
+            self.url_input.setPlaceholderText("https://abc12345.live.dynatrace.com")
+        else:
+            self.url_input.setPlaceholderText("https://dynatrace.example.com/e/12345678")
     
     def closeEvent(self, event):
         """Clean up on close"""
