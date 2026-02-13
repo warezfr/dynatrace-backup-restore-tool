@@ -1,4 +1,7 @@
 """Environments management window"""
+import os
+from datetime import datetime
+import requests
 from PyQt6.QtWidgets import (
     QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QTableWidget,
     QTableWidgetItem, QDialog, QLineEdit, QCheckBox, QMessageBox,
@@ -10,10 +13,15 @@ from PyQt6.QtGui import QFont, QColor
 
 from .bulk_operations import BulkBackupDialog, BulkRestoreDialog, BulkCompareDialog
 
+API_BASE_URL = os.getenv("API_BASE_URL", "http://127.0.0.1:8000/api")
+
+
 class EnvironmentDialog(QDialog):
-    def __init__(self, parent=None, environment=None):
+    def __init__(self, parent=None, environment=None, api_base: str = API_BASE_URL):
         super().__init__(parent)
         self.environment = environment
+        self.api_base = api_base
+        self.result_data = None
         self.init_ui()
     
     def init_ui(self):
@@ -57,6 +65,19 @@ class EnvironmentDialog(QDialog):
         # SSL options
         self.insecure_check = QCheckBox("Allow insecure SSL certificates (for test environments)")
         layout.addWidget(self.insecure_check)
+
+        # Prefill if editing
+        if self.environment:
+            self.name_input.setText(self.environment.get("name", ""))
+            env_type = self.environment.get("env_type", "production")
+            idx = self.type_combo.findText(env_type.capitalize())
+            if idx >= 0:
+                self.type_combo.setCurrentIndex(idx)
+            self.url_input.setText(self.environment.get("environment_url", ""))
+            self.token_input.setText(self.environment.get("api_token", ""))
+            tags = self.environment.get("tags") or []
+            self.tags_input.setText(", ".join(tags))
+            self.insecure_check.setChecked(bool(self.environment.get("insecure_ssl")))
         
         # Buttons
         button_layout = QHBoxLayout()
@@ -84,17 +105,44 @@ class EnvironmentDialog(QDialog):
         if not self.name_input.text() or not self.url_input.text() or not self.token_input.text():
             QMessageBox.warning(self, "Validation Error", "Please fill all required fields")
             return
+        tags = [t.strip() for t in self.tags_input.text().split(",") if t.strip()]
+        self.result_data = {
+            "name": self.name_input.text().strip(),
+            "description": None,
+            "environment_url": self.url_input.text().strip(),
+            "api_token": self.token_input.text().strip(),
+            "env_type": self.type_combo.currentText().lower(),
+            "insecure_ssl": self.insecure_check.isChecked(),
+            "tags": tags,
+        }
         self.accept()
     
     def test_connection(self):
         """Test the connection"""
-        QMessageBox.information(self, "Test Connection", "Connection successful ✓")
+        if not self.environment or not self.environment.get("id"):
+            QMessageBox.information(self, "Test Connection", "Save the environment first, then test.")
+            return
+        
+        env_id = self.environment["id"]
+        try:
+            resp = requests.post(f"{self.api_base}/environments/{env_id}/test", timeout=10)
+            if resp.status_code == 200:
+                data = resp.json()
+                status = "Healthy" if data.get("is_healthy") else "Unhealthy"
+                QMessageBox.information(self, "Test Connection", f"{status}: {data.get('message', '')}")
+            else:
+                QMessageBox.warning(self, "Test Failed", f"HTTP {resp.status_code}: {resp.text}")
+        except Exception as exc:
+            QMessageBox.critical(self, "Test Error", f"Failed to test connection: {exc}")
 
 class EnvironmentsWindow(QWidget):
     def __init__(self):
         super().__init__()
+        self.api_base = API_BASE_URL
+        self.environments_cache = {}
         self.init_ui()
         self.setup_refresh_timer()
+        self.refresh_data()
     
     def init_ui(self):
         """Initialize UI"""
@@ -136,9 +184,9 @@ class EnvironmentsWindow(QWidget):
         table_layout = QVBoxLayout()
         
         self.environments_table = QTableWidget()
-        self.environments_table.setColumnCount(7)
+        self.environments_table.setColumnCount(6)
         self.environments_table.setHorizontalHeaderLabels([
-            "Name", "Type", "URL", "Status", "Tags", "Last Tested", "Actions"
+            "Name", "Type", "URL", "Status", "Tags", "Last Tested"
         ])
         
         header = self.environments_table.horizontalHeader()
@@ -148,13 +196,7 @@ class EnvironmentsWindow(QWidget):
         header.setSectionResizeMode(3, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(4, QHeaderView.ResizeMode.ResizeToContents)
         header.setSectionResizeMode(5, QHeaderView.ResizeMode.ResizeToContents)
-        header.setSectionResizeMode(6, QHeaderView.ResizeMode.ResizeToContents)
-        
-        # Add sample data
-        self._add_environment_row("Production", "Production", "https://dyn.example.com/e/abc123", "✓ Healthy", "team-a, critical", "2 min ago")
-        self._add_environment_row("Staging", "Staging", "https://dyn-staging.example.com/e/def456", "✓ Healthy", "team-a", "5 min ago")
-        self._add_environment_row("Development", "Development", "https://dyn-dev.example.com/e/ghi789", "✓ Healthy", "team-b", "1 hour ago")
-        
+
         table_layout.addWidget(self.environments_table)
         table_group.setLayout(table_layout)
         layout.addWidget(table_group)
@@ -290,22 +332,26 @@ class EnvironmentsWindow(QWidget):
         widget.setLayout(layout)
         return widget
     
-    def _add_environment_row(self, name: str, env_type: str, url: str, status: str, tags: str, last_tested: str):
-        """Add environment row"""
+    def _add_environment_row(self, env: dict):
+        """Add environment row from API payload"""
         row = self.environments_table.rowCount()
         self.environments_table.insertRow(row)
-        
-        self.environments_table.setItem(row, 0, QTableWidgetItem(name))
-        self.environments_table.setItem(row, 1, QTableWidgetItem(env_type))
-        self.environments_table.setItem(row, 2, QTableWidgetItem(url))
-        
-        status_item = QTableWidgetItem(status)
-        if "Healthy" in status:
-            status_item.setForeground(QColor(0, 176, 80))
+
+        name_item = QTableWidgetItem(env.get("name", ""))
+        name_item.setData(Qt.ItemDataRole.UserRole, env.get("id"))
+        self.environments_table.setItem(row, 0, name_item)
+
+        self.environments_table.setItem(row, 1, QTableWidgetItem(env.get("env_type", "")))
+        self.environments_table.setItem(row, 2, QTableWidgetItem(env.get("environment_url", "")))
+
+        status_label = "Healthy" if env.get("is_healthy") else "Unhealthy"
+        status_item = QTableWidgetItem(status_label)
+        status_item.setForeground(QColor(0, 176, 80) if env.get("is_healthy") else QColor(200, 0, 0))
         self.environments_table.setItem(row, 3, status_item)
-        
-        self.environments_table.setItem(row, 4, QTableWidgetItem(tags))
-        self.environments_table.setItem(row, 5, QTableWidgetItem(last_tested))
+
+        tags = env.get("tags") or []
+        self.environments_table.setItem(row, 4, QTableWidgetItem(", ".join(tags)))
+        self.environments_table.setItem(row, 5, QTableWidgetItem(self._format_last_tested(env.get("last_tested_at"))))
     
     def _add_group_row(self, name: str, description: str, members: str):
         """Add group row"""
@@ -318,28 +364,53 @@ class EnvironmentsWindow(QWidget):
     
     def add_environment(self):
         """Add new environment"""
-        dialog = EnvironmentDialog(self)
+        dialog = EnvironmentDialog(self, api_base=self.api_base)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            QMessageBox.information(self, "Success", "Environment added successfully")
+            try:
+                resp = requests.post(
+                    f"{self.api_base}/environments",
+                    json=dialog.result_data,
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    QMessageBox.information(self, "Success", "Environment added successfully")
+                    self.refresh_data()
+                else:
+                    QMessageBox.warning(self, "Error", f"Failed to add environment: {resp.text}")
+            except Exception as exc:
+                QMessageBox.critical(self, "Error", f"Request failed: {exc}")
     
     def edit_environment(self):
         """Edit selected environment"""
-        current_row = self.environments_table.currentRow()
-        if current_row < 0:
+        env_id = self._get_selected_env_id()
+        if env_id is None:
             QMessageBox.warning(self, "Error", "Please select an environment")
             return
-        
-        dialog = EnvironmentDialog(self)
+
+        current_env = self.environments_cache.get(env_id, {})
+        dialog = EnvironmentDialog(self, environment=current_env, api_base=self.api_base)
         if dialog.exec() == QDialog.DialogCode.Accepted:
-            QMessageBox.information(self, "Success", "Environment updated successfully")
+            try:
+                resp = requests.put(
+                    f"{self.api_base}/environments/{env_id}",
+                    json=dialog.result_data,
+                    timeout=10,
+                )
+                if resp.status_code == 200:
+                    QMessageBox.information(self, "Success", "Environment updated successfully")
+                    self.refresh_data()
+                else:
+                    QMessageBox.warning(self, "Error", f"Failed to update environment: {resp.text}")
+            except Exception as exc:
+                QMessageBox.critical(self, "Error", f"Request failed: {exc}")
     
     def delete_environment(self):
         """Delete selected environment"""
-        current_row = self.environments_table.currentRow()
-        if current_row < 0:
+        env_id = self._get_selected_env_id()
+        if env_id is None:
             QMessageBox.warning(self, "Error", "Please select an environment")
             return
-        
+
         reply = QMessageBox.question(
             self,
             "Confirm Delete",
@@ -348,12 +419,34 @@ class EnvironmentsWindow(QWidget):
         )
         
         if reply == QMessageBox.StandardButton.Yes:
-            self.environments_table.removeRow(current_row)
-            QMessageBox.information(self, "Success", "Environment deleted")
+            try:
+                resp = requests.delete(f"{self.api_base}/environments/{env_id}", timeout=10)
+                if resp.status_code == 200:
+                    QMessageBox.information(self, "Success", "Environment deleted")
+                    self.refresh_data()
+                else:
+                    QMessageBox.warning(self, "Error", f"Failed to delete environment: {resp.text}")
+            except Exception as exc:
+                QMessageBox.critical(self, "Error", f"Request failed: {exc}")
     
     def test_all_environments(self):
         """Test all environment connections"""
-        QMessageBox.information(self, "Test Results", "All environments are healthy ✓")
+        if not self.environments_cache:
+            QMessageBox.information(self, "Test Results", "No environments to test.")
+            return
+        results = []
+        for env_id, env in self.environments_cache.items():
+            try:
+                resp = requests.post(f"{self.api_base}/environments/{env_id}/test", timeout=15)
+                if resp.status_code == 200:
+                    data = resp.json()
+                    status = "Healthy" if data.get("is_healthy") else "Unhealthy"
+                    results.append(f"{env.get('name')}: {status}")
+                else:
+                    results.append(f"{env.get('name')}: HTTP {resp.status_code}")
+            except Exception as exc:
+                results.append(f"{env.get('name')}: Error {exc}")
+        QMessageBox.information(self, "Test Results", "\n".join(results))
     
     def add_group(self):
         """Add new group"""
@@ -382,7 +475,37 @@ class EnvironmentsWindow(QWidget):
     
     def refresh_data(self):
         """Refresh environments list"""
-        pass  # TODO: Fetch from API
+        try:
+            resp = requests.get(f"{self.api_base}/environments", timeout=10)
+            if resp.status_code != 200:
+                QMessageBox.warning(self, "Error", f"Failed to fetch environments: {resp.text}")
+                return
+            envs = resp.json()
+            self.environments_cache = {env["id"]: env for env in envs}
+            self.environments_table.setRowCount(0)
+            for env in envs:
+                self._add_environment_row(env)
+        except Exception as exc:
+            QMessageBox.critical(self, "Error", f"Request failed: {exc}")
+    
+    def _get_selected_env_id(self):
+        """Return selected environment id or None"""
+        current_row = self.environments_table.currentRow()
+        if current_row < 0:
+            return None
+        item = self.environments_table.item(current_row, 0)
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
+
+    def _format_last_tested(self, last_tested):
+        """Format timestamp from API"""
+        if not last_tested:
+            return "-"
+        try:
+            # FastAPI returns ISO string
+            dt = datetime.fromisoformat(last_tested.replace("Z", "+00:00"))
+            return dt.strftime("%Y-%m-%d %H:%M")
+        except Exception:
+            return str(last_tested)
     
     def closeEvent(self, event):
         """Clean up on close"""
