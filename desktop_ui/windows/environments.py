@@ -152,10 +152,10 @@ class GroupDialog(QDialog):
             tags = self.environment.get("tags") or []
             self.tags_input.setText(", ".join(tags))
             self.insecure_check.setChecked(bool(self.environment.get("insecure_ssl")))
-            if "saas" in [t.lower() for t in tags]:
-                self.deployment_combo.setCurrentText("SaaS")
-            else:
-                self.deployment_combo.setCurrentText("Managed")
+            deployment = self.environment.get("deployment_type", "managed").capitalize()
+            if deployment not in ["Managed", "Saas"]:
+                deployment = "Managed"
+            self.deployment_combo.setCurrentText(deployment)
         else:
             self._update_url_placeholder("Managed")
         
@@ -186,15 +186,14 @@ class GroupDialog(QDialog):
             QMessageBox.warning(self, "Validation Error", "Please fill all required fields")
             return
         tags = [t.strip() for t in self.tags_input.text().split(",") if t.strip()]
-        deployment_tag = "saas" if self.deployment_combo.currentText().lower() == "saas" else "managed"
-        if deployment_tag not in [t.lower() for t in tags]:
-            tags.append(deployment_tag)
+        deployment_type = self.deployment_combo.currentText().lower()
         self.result_data = {
             "name": self.name_input.text().strip(),
             "description": None,
             "environment_url": self.url_input.text().strip(),
             "api_token": self.token_input.text().strip(),
             "env_type": self.type_combo.currentText().lower(),
+            "deployment_type": deployment_type,
             "insecure_ssl": self.insecure_check.isChecked(),
             "tags": tags,
         }

@@ -5,6 +5,10 @@ from sqlalchemy import Column, Integer, String, DateTime, Boolean, Text, Enum as
 from sqlalchemy.orm import relationship
 from ..database.database import Base
 
+class DeploymentType(str, Enum):
+    MANAGED = "managed"
+    SAAS = "saas"
+
 class EnvironmentType(str, Enum):
     PRODUCTION = "production"
     STAGING = "staging"
@@ -48,6 +52,7 @@ class DynatraceEnvironment(Base):
     environment_url = Column(String, unique=True)
     api_token = Column(String)  # À chiffrer en prod
     env_type = Column(SQLEnum(EnvironmentType), index=True)
+    deployment_type = Column(SQLEnum(DeploymentType), default=DeploymentType.MANAGED, index=True)
     
     # Connection details
     is_active = Column(Boolean, default=True, index=True)

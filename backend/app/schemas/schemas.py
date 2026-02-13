@@ -37,6 +37,10 @@ class EnvironmentTypeEnum(str, Enum):
     TRAINING = "training"
     CUSTOM = "custom"
 
+class DeploymentTypeEnum(str, Enum):
+    MANAGED = "managed"
+    SAAS = "saas"
+
 # ===== ENVIRONMENT SCHEMAS =====
 
 class DynatraceEnvironmentCreate(BaseModel):
@@ -45,6 +49,7 @@ class DynatraceEnvironmentCreate(BaseModel):
     environment_url: str
     api_token: str
     env_type: EnvironmentTypeEnum
+    deployment_type: DeploymentTypeEnum = DeploymentTypeEnum.MANAGED
     insecure_ssl: bool = False
     tags: Optional[List[str]] = None
 
@@ -54,6 +59,7 @@ class DynatraceEnvironmentResponse(BaseModel):
     description: Optional[str]
     environment_url: str
     env_type: EnvironmentTypeEnum
+    deployment_type: DeploymentTypeEnum
     is_active: bool
     insecure_ssl: bool
     is_healthy: bool

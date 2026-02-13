@@ -3,7 +3,7 @@ from fastapi import APIRouter, Depends, HTTPException, BackgroundTasks
 from sqlalchemy.orm import Session
 from typing import List
 from ..database.database import get_db
-from ..models.models import DynatraceEnvironment, EnvironmentGroup, BulkOperation, EnvironmentType, BackupStatus, ConfigType
+from ..models.models import DynatraceEnvironment, EnvironmentGroup, BulkOperation, EnvironmentType, BackupStatus, ConfigType, DeploymentType
 from ..schemas.schemas import (
     DynatraceEnvironmentCreate, DynatraceEnvironmentResponse,
     EnvironmentGroupCreate, EnvironmentGroupResponse,
@@ -46,6 +46,7 @@ async def create_environment(
         environment_url=env.environment_url,
         api_token=env.api_token,
         env_type=env.env_type,
+        deployment_type=DeploymentType(env.deployment_type),
         is_active=True,
         insecure_ssl=env.insecure_ssl,
         is_healthy=is_healthy,
@@ -106,6 +107,7 @@ async def update_environment(
     env.environment_url = env_update.environment_url
     env.api_token = env_update.api_token
     env.env_type = env_update.env_type
+    env.deployment_type = DeploymentType(env_update.deployment_type)
     env.insecure_ssl = env_update.insecure_ssl
     env.tags = env_update.tags or []
     
