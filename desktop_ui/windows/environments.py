@@ -24,73 +24,6 @@ class EnvironmentDialog(QDialog):
         self.result_data = None
         self.init_ui()
 
-
-class GroupDialog(QDialog):
-    def __init__(self, parent=None, group=None):
-        super().__init__(parent)
-        self.group = group
-        self.result_data = None
-        self.init_ui()
-
-    def init_ui(self):
-        layout = QVBoxLayout()
-        title_text = "Edit Group" if self.group else "New Group"
-        title = QLabel(title_text)
-        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
-        layout.addWidget(title)
-
-        layout.addWidget(QLabel("Name:"))
-        self.name_input = QLineEdit()
-        layout.addWidget(self.name_input)
-
-        layout.addWidget(QLabel("Description:"))
-        self.desc_input = QLineEdit()
-        layout.addWidget(self.desc_input)
-
-        layout.addWidget(QLabel("Environment IDs (comma-separated):"))
-        self.env_ids_input = QLineEdit()
-        self.env_ids_input.setPlaceholderText("1, 2, 3")
-        layout.addWidget(self.env_ids_input)
-
-        if self.group:
-            self.name_input.setText(self.group.get("name", ""))
-            self.desc_input.setText(self.group.get("description", ""))
-            env_ids = self.group.get("environment_ids") or []
-            self.env_ids_input.setText(", ".join(str(i) for i in env_ids))
-
-        button_layout = QHBoxLayout()
-        button_layout.addStretch()
-        save_btn = QPushButton("✓ Save")
-        save_btn.clicked.connect(self.save)
-        button_layout.addWidget(save_btn)
-        cancel_btn = QPushButton("✕ Cancel")
-        cancel_btn.clicked.connect(self.reject)
-        button_layout.addWidget(cancel_btn)
-        layout.addLayout(button_layout)
-
-        self.setLayout(layout)
-        self.setGeometry(150, 150, 420, 260)
-
-    def save(self):
-        name = self.name_input.text().strip()
-        env_ids_text = self.env_ids_input.text().strip()
-        if not name:
-            QMessageBox.warning(self, "Validation Error", "Name is required")
-            return
-        env_ids = []
-        if env_ids_text:
-            try:
-                env_ids = [int(x.strip()) for x in env_ids_text.split(",") if x.strip()]
-            except ValueError:
-                QMessageBox.warning(self, "Validation Error", "Environment IDs must be integers separated by commas")
-                return
-        self.result_data = {
-            "name": name,
-            "description": self.desc_input.text().strip() or None,
-            "environment_ids": env_ids,
-        }
-        self.accept()
-    
     def init_ui(self):
         """Initialize UI"""
         layout = QVBoxLayout()
@@ -184,8 +117,8 @@ class GroupDialog(QDialog):
         layout.addLayout(button_layout)
         
         self.setLayout(layout)
-        self.setGeometry(100, 100, 450, 400)
-    
+        self.setGeometry(100, 100, 450, 450)
+
     def save(self):
         """Save environment"""
         if not self.name_input.text() or not self.url_input.text() or not self.token_input.text():
@@ -204,7 +137,7 @@ class GroupDialog(QDialog):
             "tags": tags,
         }
         self.accept()
-    
+
     def test_connection(self):
         """Test the connection"""
         if not self.environment or not self.environment.get("id"):
@@ -222,6 +155,73 @@ class GroupDialog(QDialog):
                 QMessageBox.warning(self, "Test Failed", f"HTTP {resp.status_code}: {resp.text}")
         except Exception as exc:
             QMessageBox.critical(self, "Test Error", f"Failed to test connection: {exc}")
+
+
+class GroupDialog(QDialog):
+    def __init__(self, parent=None, group=None):
+        super().__init__(parent)
+        self.group = group
+        self.result_data = None
+        self.init_ui()
+
+    def init_ui(self):
+        layout = QVBoxLayout()
+        title_text = "Edit Group" if self.group else "New Group"
+        title = QLabel(title_text)
+        title.setFont(QFont("Segoe UI", 12, QFont.Weight.Bold))
+        layout.addWidget(title)
+
+        layout.addWidget(QLabel("Name:"))
+        self.name_input = QLineEdit()
+        layout.addWidget(self.name_input)
+
+        layout.addWidget(QLabel("Description:"))
+        self.desc_input = QLineEdit()
+        layout.addWidget(self.desc_input)
+
+        layout.addWidget(QLabel("Environment IDs (comma-separated):"))
+        self.env_ids_input = QLineEdit()
+        self.env_ids_input.setPlaceholderText("1, 2, 3")
+        layout.addWidget(self.env_ids_input)
+
+        if self.group:
+            self.name_input.setText(self.group.get("name", ""))
+            self.desc_input.setText(self.group.get("description", ""))
+            env_ids = self.group.get("environment_ids") or []
+            self.env_ids_input.setText(", ".join(str(i) for i in env_ids))
+
+        button_layout = QHBoxLayout()
+        button_layout.addStretch()
+        save_btn = QPushButton("✓ Save")
+        save_btn.clicked.connect(self.save)
+        button_layout.addWidget(save_btn)
+        cancel_btn = QPushButton("✕ Cancel")
+        cancel_btn.clicked.connect(self.reject)
+        button_layout.addWidget(cancel_btn)
+        layout.addLayout(button_layout)
+
+        self.setLayout(layout)
+        self.setGeometry(150, 150, 420, 260)
+
+    def save(self):
+        name = self.name_input.text().strip()
+        env_ids_text = self.env_ids_input.text().strip()
+        if not name:
+            QMessageBox.warning(self, "Validation Error", "Name is required")
+            return
+        env_ids = []
+        if env_ids_text:
+            try:
+                env_ids = [int(x.strip()) for x in env_ids_text.split(",") if x.strip()]
+            except ValueError:
+                QMessageBox.warning(self, "Validation Error", "Environment IDs must be integers separated by commas")
+                return
+        self.result_data = {
+            "name": name,
+            "description": self.desc_input.text().strip() or None,
+            "environment_ids": env_ids,
+        }
+        self.accept()
 
 class EnvironmentsWindow(QWidget):
     def __init__(self):
