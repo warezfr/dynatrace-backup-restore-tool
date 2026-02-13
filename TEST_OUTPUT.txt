@@ -1,0 +1,19 @@
+==================================================
+Dynatrace Backup Manager - Installation Test
+==================================================
+
+Testing imports...
+Traceback (most recent call last):
+  File "D:\Projet\Backup-monaco\dynatrace-backup-manager\test_installation.py", line 127, in <module>
+    sys.exit(main())
+             ~~~~^^
+  File "D:\Projet\Backup-monaco\dynatrace-backup-manager\test_installation.py", line 95, in main
+    "Imports": test_imports(),
+               ~~~~~~~~~~~~^^
+  File "D:\Projet\Backup-monaco\dynatrace-backup-manager\test_installation.py", line 23, in test_imports
+    print(f"  \u2713 {name}")
+    ~~~~~^^^^^^^^^^^^^^^
+  File "C:\Python314\Lib\encodings\cp1252.py", line 19, in encode
+    return codecs.charmap_encode(input,self.errors,encoding_table)[0]
+           ~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+UnicodeEncodeError: 'charmap' codec can't encode character '\u2713' in position 2: character maps to <undefined>
