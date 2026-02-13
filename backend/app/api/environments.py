@@ -38,6 +38,9 @@ async def create_environment(
         insecure_ssl=env.insecure_ssl
     )
     is_healthy, message = api.test_connection()
+    required_scopes = ["config.read", "config.write"]
+    if env.deployment_type == "saas":
+        required_scopes.append("APIv2 scopes per feature (e.g., settings:objects:read)")
     
     # Create
     db_env = DynatraceEnvironment(
@@ -149,6 +152,9 @@ async def test_environment(
         insecure_ssl=env.insecure_ssl
     )
     is_healthy, message = api.test_connection()
+    required_scopes = ["config.read", "config.write"]
+    if env.deployment_type == DeploymentType.SAAS:
+        required_scopes.append("APIv2 scopes per feature (e.g., settings:objects:read)")
     
     # Update
     env.is_healthy = is_healthy

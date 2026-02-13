@@ -3,6 +3,7 @@ from datetime import datetime
 from typing import Optional, List
 from pydantic import BaseModel
 from enum import Enum
+import re
 
 class ConfigTypeEnum(str, Enum):
     ALERTING = "alerting"
@@ -52,6 +53,28 @@ class DynatraceEnvironmentCreate(BaseModel):
     deployment_type: DeploymentTypeEnum = DeploymentTypeEnum.MANAGED
     insecure_ssl: bool = False
     tags: Optional[List[str]] = None
+
+    @staticmethod
+    def _is_valid_managed(url: str) -> bool:
+        # Expected: https://host/e/UUID or https://host/e/hex
+        return bool(re.match(r"^https?://[^/]+/e/[A-Za-z0-9-]+/?$", url))
+
+    @staticmethod
+    def _is_valid_saas(url: str) -> bool:
+        # Expected: https://abc12345.live.dynatrace.com or similar SaaS host
+        return bool(re.match(r"^https?://[A-Za-z0-9.-]*live\\.dynatrace\\.com/?$", url))
+
+    @classmethod
+    def _validate_url(cls, deployment_type: DeploymentTypeEnum, url: str):
+        if deployment_type == DeploymentTypeEnum.MANAGED:
+            if not cls._is_valid_managed(url):
+                raise ValueError("Managed URL attendu (ex: https://host/e/12345678)")
+        else:
+            if not cls._is_valid_saas(url):
+                raise ValueError("SaaS URL attendu (ex: https://abc12345.live.dynatrace.com)")
+
+    def model_post_init(self, __context):
+        self._validate_url(self.deployment_type, self.environment_url)
 
 class DynatraceEnvironmentResponse(BaseModel):
     id: int

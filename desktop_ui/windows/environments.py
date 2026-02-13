@@ -129,6 +129,12 @@ class GroupDialog(QDialog):
         self.token_input = QLineEdit()
         self.token_input.setEchoMode(QLineEdit.EchoMode.Password)
         layout.addWidget(self.token_input)
+
+        # Scope reminder
+        scope_label = QLabel("Required scopes:\nManaged: config.read, config.write\nSaaS: + API v2 scopes (e.g., settings:objects:read)")
+        scope_label.setWordWrap(True)
+        scope_label.setStyleSheet("color: #555; font-size: 10px;")
+        layout.addWidget(scope_label)
         
         # Tags
         layout.addWidget(QLabel("Tags (comma-separated):"))
